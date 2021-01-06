@@ -15,6 +15,8 @@ Public BaseUri As String
 Public ApiKey As String
 'Redmine Proxy
 Public Proxy As String
+' Limit the informations bring back to the server. It prevent application to hang if there is too many informations to retrieve
+Public LimitRequest As Long
 
 ' Internal json instance
 Private json As Dictionary
@@ -29,6 +31,7 @@ Private statuses As Collection
 Private Sub Class_Initialize()
   Me.BaseUri = vbNullString
   Me.ApiKey = vbNullString
+  Me.LimitRequest = 2000
   Set projects = Nothing
   Set customFields = Nothing
   Set statuses = Nothing
@@ -60,8 +63,11 @@ Public Function GetUsers(Optional ByVal userId As Integer = -1, _
                          Optional ByVal incGroups As Boolean = True, _
                          Optional ByVal status As Integer = 1, _
                          Optional ByVal name As String = "", _
-                         Optional ByVal group_id As Integer = -1) As Collection
-    Dim ret As Collection
+                         Optional ByVal group_id As Integer = -1, _
+                         Optional ByVal numPage As Integer = -1, _
+                         Optional ByVal limit As Integer = -1 _
+                        ) As RedmineUsers
+    Dim ret As RedmineUsers
     Dim reqPath, incStr As String
     Dim params As Object
     Dim bIsDone As Boolean
@@ -75,15 +81,27 @@ Public Function GetUsers(Optional ByVal userId As Integer = -1, _
     incStr = ""
     If incMemberships Then incStr = incStr & ",memberships"
     If incGroups Then incStr = incStr & ",groups"
-    Set ret = New Collection
+    Set ret = New RedmineUsers
   
+    If limit = -1 Then
+        limit = 500 ' Max number by request
+    End If
+    lOffset = 0
+    
     Do
         Set params = CreateObject("Scripting.Dictionary")
         If incStr <> "" Then Call params.Add("include", Mid(incStr, 2))
         If status <> 1 Then Call params.Add("status", status)
         If name <> "" Then Call params.Add("name", name)
         If group_id <> -1 Then Call params.Add("group_id", group_id)
-        If lOffset <> 0 Then Call params.Add("offset", lOffset)
+        If lOffset <> 0 Then
+            Call params.Add("offset", lOffset)
+        ElseIf numPage <> -1 Then
+            Call params.Add("offset", numPage)
+        End If
+        If limit <> -1 Then
+            Call params.Add("limit", limit)
+        End If
     
         bIsDone = True
         If SendApiRequest("GET", reqPath, requestParam:=params) Then
@@ -94,7 +112,7 @@ Public Function GetUsers(Optional ByVal userId As Integer = -1, _
                 Set r = Nothing
                 Set r = New RedmineUser
                 Call r.load(json("user"))
-                Call ret.Add(r)
+                Call ret.users.Add(r)
             Else
                 'Multiple result
                 Dim u As Object
@@ -102,12 +120,27 @@ Public Function GetUsers(Optional ByVal userId As Integer = -1, _
                     Set r = Nothing
                     Set r = New RedmineUser
                     Call r.load(u)
-                    Call ret.Add(r)
+                    Call ret.users.Add(r)
+                    If ret.users.Count = LimitRequest Then
+                        Exit For
+                    End If
                 Next
             End If
-            If json.Exists("total_count") And json.Exists("offset") And json.Exists("limit") Then
+            
+            If json.Exists("total_count") And ret.usersNumber = -1 Then
+                ret.usersNumber = CLng(json("total_count"))
+            End If
+            If json.Exists("limit") And ret.limit = -1 Then
+                ret.limit = CLng(json("limit"))
+            End If
+            If lOffset = 0 And json.Exists("offset") And ret.numPage = -1 Then
+                ret.numPage = CLng(json("offset"))
+            End If
+            
+            ' If numPage = -1, read only this page, not the others
+            If numPage = -1 And json.Exists("total_count") And json.Exists("offset") And json.Exists("limit") Then
                 lOffset = CLng(json("limit")) + lOffset
-                If lOffset < CLng(json("total_count")) Then
+                If lOffset < CLng(json("total_count")) And (LimitRequest = -1 Or ret.users.Count < LimitRequest) Then
                     ' Continue the read
                     bIsDone = False
                 End If
@@ -141,7 +174,7 @@ Public Function GetGroups(Optional ByVal groupId As Integer = -1, _
   
     If SendApiRequest("GET", reqPath, requestParam:=params) Then
         Dim ret As Collection
-        Dim r As RedmineUser
+        Dim r As RedmineGroup
         Set ret = New Collection
 
         If json.Exists("group") Then
@@ -303,6 +336,24 @@ Public Function GetCustomFields() As Collection
     End If
 End Function
 
+'Get custom field informations by name.
+'
+' No request is done if the internal list of custom field has been already done.
+'
+'@param customFieldName: Custom Field's name
+'@return: An instance of RedmineCustomField, Nothing if not found.
+Public Function GetCustomFieldByName(ByVal customFieldName As String) As RedmineCustomField
+    Dim customfield As RedmineCustomField
+  
+    Set GetCustomFieldByName = Nothing
+    For Each customfield In GetCustomFields
+        If customfield.name = customFieldName Then
+            Set GetCustomFieldByName = customfield
+            Exit For
+        End If
+    Next
+End Function
+
 'Get custom status informations.
 '
 '@return: A collection of instance of RedmineStatus, Nothing if not found.
@@ -392,10 +443,8 @@ Public Function GetIssues(ByVal project As RedmineProject, _
             End If
             If lOffset <> 0 Then
                 Call params.Add("offset", lOffset)
-            Else
-                If numPage <> -1 Then
-                    Call params.Add("offset", numPage)
-                End If
+            ElseIf numPage <> -1 Then
+                Call params.Add("offset", numPage)
             End If
             If limit <> -1 Then
                 Call params.Add("limit", limit)
@@ -422,10 +471,16 @@ Public Function GetIssues(ByVal project As RedmineProject, _
                     Set r = New RedmineIssue
                     Call r.load(u)
                     Call ret.issues.Add(r)
+                    If ret.issues.Count = LimitRequest Then
+                        Exit For
+                    End If
                 Next
                 
                 If json.Exists("total_count") And ret.issuesNumber = -1 Then
                     ret.issuesNumber = CLng(json("total_count"))
+                End If
+                If json.Exists("limit") And ret.limit = -1 Then
+                    ret.limit = CLng(json("limit"))
                 End If
                 If lOffset = 0 And json.Exists("offset") And ret.numPage = -1 Then
                     ret.numPage = CLng(json("offset"))
@@ -434,7 +489,7 @@ Public Function GetIssues(ByVal project As RedmineProject, _
                 ' If numPage = -1, read only this page, not the others
                 If numPage = -1 And json.Exists("total_count") And json.Exists("offset") And json.Exists("limit") Then
                     lOffset = CLng(json("limit")) + lOffset
-                    If lOffset < CLng(json("total_count")) Then
+                    If lOffset < CLng(json("total_count")) And (LimitRequest = -1 Or ret.issues.Count < LimitRequest) Then
                         ' Continue the read
                         bIsDone = False
                         ret.numPage = -1 ' More than one page, don't fill this info, it has no sens
@@ -476,18 +531,18 @@ Public Function SendApiRequest(ByVal method As String, _
     'Add parameters
     If Not requestParam Is Nothing And TypeName(requestParam) = "Dictionary" Then
         If LBound(requestParam.Keys) >= 0 Then
-        postUri = postUri & "?"
-        For Each key In requestParam
-            If TypeName(requestParam.item(key)) = "Collection" Then
-                Dim item As Variant
-                
-                For Each item In requestParam.item(key)
-                    postUri = postUri & UrlEncodeUtf8(key) & "=" & UrlEncodeUtf8(item) & "&"
-                Next
-            Else
-                postUri = postUri & UrlEncodeUtf8(key) & "=" & UrlEncodeUtf8(requestParam.item(key)) & "&"
-            End If
-        Next
+            postUri = postUri & "?"
+            For Each key In requestParam
+                If TypeName(requestParam.item(key)) = "Collection" Then
+                    Dim item As Variant
+                    
+                    For Each item In requestParam.item(key)
+                        postUri = postUri & UrlEncodeUtf8(key) & "=" & UrlEncodeUtf8(item) & "&"
+                    Next
+                Else
+                    postUri = postUri & UrlEncodeUtf8(key) & "=" & UrlEncodeUtf8(requestParam.item(key)) & "&"
+                End If
+            Next
         End If
     End If
 

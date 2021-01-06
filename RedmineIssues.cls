@@ -13,6 +13,8 @@ Option Explicit
 Public issuesNumber As Long
 ' Current issue page
 Public numPage As Integer
+' Current issues per page
+Public limit As Long
 ' List of issues for this page
 Public issues As Collection
 
@@ -20,6 +22,7 @@ Public issues As Collection
 Private Sub Class_Initialize()
     issuesNumber = -1
     numPage = -1
+    limit = -1
     Set issues = New Collection
 End Sub
 

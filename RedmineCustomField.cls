@@ -44,3 +44,36 @@ Public Function load(ByVal json As Dictionary)
     End If
 End Function
 
+' Search label into possible values an return the possible value if found, Nothing else
+Public Function getPossibleValueFromLabel(ByVal val As String) As RedminePossibleValue
+    Set getPossibleValueFromLabel = Nothing
+    
+    If Not possible_values Is Nothing Then
+        Dim valFor As RedminePossibleValue
+        
+        For Each valFor In possible_values
+            If val = valFor.label Then
+                Set getPossibleValueFromLabel = valFor
+                Exit For
+            End If
+        Next
+    End If
+End Function
+
+' Search value into possible values an return the possible value if found, Nothing else
+Public Function getPossibleValueFromValue(ByVal val As String) As RedminePossibleValue
+    Set getPossibleValueFromlValue = Nothing
+    
+    If Not possible_values Is Nothing Then
+        Dim valFor As RedminePossibleValue
+        
+        For Each valFor In possible_values
+            If val = valFor.value Then
+                Set getPossibleValueFromlValue = valFor
+                Exit For
+            End If
+        Next
+    End If
+End Function
+
+

@@ -10,6 +10,11 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Public id, status As Long
+
+' Used when retrieve user from groups request, in this case only id is filled, the others are not filled.
+Public name As String
+
+' Used when retrieve users only
 Public login, firstname, lastname, mail As String
 
 Private pMemberships, pGroups As Collection
@@ -38,11 +43,23 @@ End Sub
 
 Public Function load(ByVal json As Dictionary)
     Me.id = CLng(json("id"))
-    Me.login = json("login")
-    Me.firstname = json("firstname")
-    Me.lastname = json("lastname")
-    Me.mail = json("mail")
-    Me.status = Int(json("status"))
+    
+    ' Only when retrieve groups with users
+    If json.Exists("name") Then
+        Me.name = json("name")
+    End If
+    If json.Exists("firstname") Then
+        Me.firstname = json("firstname")
+    End If
+    If json.Exists("lastname") Then
+        Me.lastname = json("lastname")
+    End If
+    If json.Exists("mail") Then
+        Me.mail = json("mail")
+    End If
+    If json.Exists("status") Then
+        Me.status = json("status")
+    End If
   
     Dim val As Object
     If json.Exists("memberships") Then
