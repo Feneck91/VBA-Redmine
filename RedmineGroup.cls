@@ -42,8 +42,6 @@ Public Function load(ByVal json As Dictionary)
         For Each val In json("users")
             Set u = New RedmineUser
             Call u.load(val("user"))
-            u.id = CLng(val("user")("id"))
-            u.name = val("user")("name")
             Call pUsers.Add(u)
         Next
     End If

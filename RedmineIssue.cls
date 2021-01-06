@@ -14,7 +14,7 @@ Public subject, description  As String
 ' Contains 'id' and 'name' values fields (Dictionary)
 Public project, tracker, status, priority, author, assignedTo As Dictionary
 ' Contains 'id' and 'name', 'value' values fields (Dictionary)
-Public customFields As Collection
+Public customFields As Dictionary
 Public done_ratio As Double
 Public is_private As Boolean
 Public created_on, update_on As Date
@@ -27,7 +27,7 @@ Private Sub Class_Initialize()
     Set priority = CreateObject("Scripting.Dictionary")
     Set author = CreateObject("Scripting.Dictionary")
     Set assignedTo = CreateObject("Scripting.Dictionary")
-    Set customFields = New Collection
+    Set customFields = CreateObject("Scripting.Dictionary")
 End Sub
 
 'Destructor
@@ -84,9 +84,26 @@ Public Function load(ByVal json As Dictionary)
     Dim val As Object
 
     If json.Exists("custom_fields") Then
+        Dim cf As Dictionary
+        
         For Each val In json("custom_fields")
-            Call customFields.Add(FillIdNameValue(val))
+            Set cf = FillIdNameValue(val)
+            Call customFields.Add(cf("id"), cf)
         Next
     End If
 End Function
 
+' Get the value of the custom field pass as parameter
+'
+' The lookup is based from the custom field's id
+'
+' @param customfield Custom field to retrieve
+' @return vbNullString if not found, else the value of the custom field.
+Public Function getCustomFieldValue(ByRef customfield As RedmineCustomField) As String
+    Dim customFieldsVal As Dictionary
+    getCustomFieldValue = vbNullString
+    
+    If customFields.Exists(customfield.id) Then
+        getCustomFieldValue = customFields(customfield.id)("value")
+    End If
+End Function

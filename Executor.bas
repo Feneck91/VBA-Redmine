@@ -1,17 +1,20 @@
 Attribute VB_Name = "Executor"
-Private Sub FillTab(ByRef sheet As Worksheet, ByRef usersInformations() As String, ByVal title As String)
+Private Sub FillTab(ByRef sheet As Worksheet, ByRef usersInformations() As String, ByVal title As String, Optional ByVal numberItems As Long = -1)
     Dim rangeValues, rangeHeader, rangeTitle As range
     Dim oTableStyle As TableStyle
     Dim widthCells As Integer
     
     Const INDEX_COLUMN_START = 1
+    Const INDEX_ROW_TITLE = 1
+    Const INDEX_ROW_LIMIT_MESSAGE = 2
+    Const INDEX_ROW_TABLE = 4
     
     widthCells = -1
     On Error Resume Next
     widthCells = UBound(usersInformations, 2)
     On Error GoTo 0
     
-    Set rangeTitle = sheet.range(sheet.Cells(1, INDEX_COLUMN_START), sheet.Cells(1, INDEX_COLUMN_START + IIf(widthCells = -1, 10, widthCells)))
+    Set rangeTitle = sheet.range(sheet.Cells(INDEX_ROW_TITLE, INDEX_COLUMN_START), sheet.Cells(INDEX_ROW_TITLE, INDEX_COLUMN_START + IIf(widthCells = -1, 10, widthCells)))
     
     ' Assign title
     sheet.Cells(1, INDEX_COLUMN_START).value = title
@@ -25,9 +28,24 @@ Private Sub FillTab(ByRef sheet As Worksheet, ByRef usersInformations() As Strin
         ' Error
         rangeTitle.Characters.Font.Color = RGB(255, 0, 0)
     Else
+        If numberItems <> -1 And numberItems <> UBound(usersInformations, 1) Then
+            ' All item has not been retrieve from server du to RedmineAPI.LimitRequest limit
+            Dim rangeLimit
+            Set rangeLimit = sheet.range(sheet.Cells(INDEX_ROW_LIMIT_MESSAGE, INDEX_COLUMN_START), sheet.Cells(INDEX_ROW_LIMIT_MESSAGE, INDEX_COLUMN_START + IIf(widthCells = -1, 10, widthCells)))
+            
+            ' Assign Limit
+            sheet.Cells(2, INDEX_COLUMN_START).value = "Be careful, there is only " & UBound(usersInformations, 1) & " items displayed, database contains " & numberItems & " items!"
+            rangeLimit.Merge
+            rangeLimit.Cells.VerticalAlignment = xlCenter
+            rangeLimit.Cells.HorizontalAlignment = xlCenter
+            rangeLimit.Characters.Font.Bold = True
+            rangeLimit.Interior.Color = RGB(255, 174, 0)
+            rangeLimit.Characters.Font.Color = RGB(255, 0, 0)
+        End If
+    
         ' Compute array range
-        Set rangeValues = sheet.range(sheet.Cells(3, INDEX_COLUMN_START), sheet.Cells(3 + UBound(usersInformations, 1), INDEX_COLUMN_START + widthCells))
-        Set rangeHeader = sheet.range(sheet.Cells(3, INDEX_COLUMN_START), sheet.Cells(3, INDEX_COLUMN_START + widthCells))
+        Set rangeValues = sheet.range(sheet.Cells(INDEX_ROW_TABLE, INDEX_COLUMN_START), sheet.Cells(INDEX_ROW_TABLE + UBound(usersInformations, 1), INDEX_COLUMN_START + widthCells))
+        Set rangeHeader = sheet.range(sheet.Cells(INDEX_ROW_TABLE, INDEX_COLUMN_START), sheet.Cells(INDEX_ROW_TABLE, INDEX_COLUMN_START + widthCells))
         
         ' Assign values
         rangeValues.value = usersInformations
@@ -75,14 +93,21 @@ Sub OnButtonExecuteClick()
     Dim redmine As RedmineApi
     Dim project As RedmineProject
     Dim status As RedmineStatus
+    Dim customfield As RedmineCustomField
+    Dim arrSplitStrings() As String
+    Dim user As RedmineUser
     Dim index As Integer
     Dim sheetName As String
     Dim rowNumber As Integer
+    Dim collectionCustomField As Collection
+    Const ROW_BEGIN_GENERATION = 10
     
-    Const ColumnCheck = "G"
-    Const ColumnIssueDisplayDescription = "H"
-    Const ColumnIssueProjectFilter = "D"
-    Const ColumnIssueStatusFilter = "E"
+    Const ColumnCheck = "H"
+    Const ColumnIssueDisplayDescription = "I"
+    Const ColumnIssueDisplayCustomFields = "D"
+    Const ColumnIssueProjectFilter = "E"
+    Const ColumnIssueStatusFilter = "F"
+    Const ColumnIssueCustomFieldFilter = "G"
     
     
     ' Delete all pages
@@ -105,40 +130,42 @@ Sub OnButtonExecuteClick()
     redmine.BaseUri = ThisWorkbook.Sheets("Main").Cells(4, "B").value
     redmine.ApiKey = ThisWorkbook.Sheets("Main").Cells(6, "B").value
     redmine.Proxy = ThisWorkbook.Sheets("Main").Cells(5, "B").value
+    If ThisWorkbook.Sheets("Main").Cells(7, "B").value <> vbNullString Then
+        redmine.LimitRequest = ThisWorkbook.Sheets("Main").Cells(7, "B").value
+    End If
     
     '
     '
     ' Get Users list
     '
     '
-    rowNumber = 9
+    rowNumber = ROW_BEGIN_GENERATION + 0
     If Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
-        Dim users As Collection
-        Dim user As RedmineUser
+        Dim users As RedmineUsers
         
         sheetName = "Users"
         Sheets.Add(After:=Sheets(Sheets.Count)).name = sheetName
         Call Worksheets("Main").Activate
         
-        Set users = redmine.GetUsers()
+        Set users = redmine.GetUsers(numPage:=20)
         
         Dim usersInformations() As String
         
-        ReDim usersInformations(users.Count, 4)
+        ReDim usersInformations(users.users.Count, 4)
         usersInformations(0, 0) = "Id"
         usersInformations(0, 1) = "Login"
         usersInformations(0, 2) = "First name"
         usersInformations(0, 3) = "Last Name"
         usersInformations(0, 4) = "Email"
-        For index = 1 To users.Count
-            Set user = users.item(index)
+        For index = 1 To users.users.Count
+            Set user = users.users.item(index)
             usersInformations(index, 0) = user.id
             usersInformations(index, 1) = user.login
             usersInformations(index, 2) = user.firstname
             usersInformations(index, 3) = user.lastname
             usersInformations(index, 4) = user.mail
         Next index
-        Call FillTab(Worksheets(sheetName), usersInformations, "List of all Redmine users ")
+        Call FillTab(Worksheets(sheetName), usersInformations, "List of Redmine users, " & users.usersNumber & " found.", users.usersNumber)
     End If
     
     '
@@ -146,7 +173,7 @@ Sub OnButtonExecuteClick()
     ' Get Projects list
     '
     '
-    rowNumber = 10
+    rowNumber = ROW_BEGIN_GENERATION + 1
     If Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim projects As Collection
         
@@ -172,7 +199,7 @@ Sub OnButtonExecuteClick()
             projectsInformations(index, 3) = project.GetDescriptionWithoutImage()
             projectsInformations(index, 4) = project.is_public
         Next index
-        Call FillTab(Worksheets(sheetName), projectsInformations, "List of all Redmine projects")
+        Call FillTab(Worksheets(sheetName), projectsInformations, "List of all Redmine projects, " & projects.Count & " found.")
     End If
     
     '
@@ -180,10 +207,9 @@ Sub OnButtonExecuteClick()
     ' Get Custom Fields list
     '
     '
-    rowNumber = 11
+    rowNumber = ROW_BEGIN_GENERATION + 2
     If Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim customFields As Collection
-        Dim customField As RedmineCustomField
         
         sheetName = "Custom Fields"
         Sheets.Add(After:=Sheets(Sheets.Count)).name = sheetName
@@ -203,13 +229,13 @@ Sub OnButtonExecuteClick()
         customFieldsInformations(0, 6) = "Label"
         
         For index = 1 To customFields.Count
-            Set customField = customFields.item(index)
-            customFieldsInformations(index, 0) = customField.id
-            customFieldsInformations(index, 1) = customField.name
-            customFieldsInformations(index, 2) = customField.customized_type
-            customFieldsInformations(index, 3) = customField.field_format
-            customFieldsInformations(index, 4) = customField.default_value
-            If Not customField.possible_values Is Nothing Then
+            Set customfield = customFields.item(index)
+            customFieldsInformations(index, 0) = customfield.id
+            customFieldsInformations(index, 1) = customfield.name
+            customFieldsInformations(index, 2) = customfield.customized_type
+            customFieldsInformations(index, 3) = customfield.field_format
+            customFieldsInformations(index, 4) = customfield.default_value
+            If Not customfield.possible_values Is Nothing Then
                 Dim possibleValue As RedminePossibleValue
                 Dim allPossibleValues, allPossibleLabels, separator As String
                 
@@ -217,7 +243,7 @@ Sub OnButtonExecuteClick()
                 allPossibleValues = ""
                 allPossibleLabels = ""
                 
-                For Each possibleValue In customField.possible_values
+                For Each possibleValue In customfield.possible_values
                     allPossibleValues = allPossibleValues & separator & possibleValue.value
                     allPossibleLabels = allPossibleLabels & separator & possibleValue.label
                     separator = vbCrLf
@@ -234,10 +260,53 @@ Sub OnButtonExecuteClick()
     
     '
     '
+    ' Get Group list
+    '
+    '
+    rowNumber = ROW_BEGIN_GENERATION + 3
+    If Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
+        Dim groups As Collection
+        Dim group As RedmineGroup
+        
+        sheetName = "Groups"
+        Sheets.Add(After:=Sheets(Sheets.Count)).name = sheetName
+        Call Worksheets("Main").Activate
+        
+        Set groups = redmine.GetGroups(-1, True, True)
+        
+        Dim groupsInformations() As String
+        Dim infosText As String
+        ReDim groupsInformations(groups.Count, 3)
+        
+        groupsInformations(0, 0) = "Id"
+        groupsInformations(0, 1) = "Name"
+        groupsInformations(0, 2) = "Users"
+        groupsInformations(0, 3) = "Memberships"
+        For index = 1 To groups.Count
+            Set group = groups.item(index)
+            groupsInformations(index, 0) = group.id
+            groupsInformations(index, 1) = group.name
+            infosText = vbNullString
+            For Each user In group.users()
+                infosText = infosText & IIf(infosText = vbNullString, "", vbCrLf) & user.name & " (" & user.id & ")"
+                
+            Next
+            groupsInformations(index, 2) = infosText
+            infosText = vbNullString
+            For Each project In group.memberships()
+                infosText = infosText & IIf(infosText = vbNullString, "", vbCrLf) & project.name
+            Next
+            groupsInformations(index, 3) = infosText
+        Next index
+        Call FillTab(Worksheets(sheetName), groupsInformations, "List of all groups, " & groups.Count & " found.")
+    End If
+    
+    '
+    '
     ' Get Status list
     '
     '
-    rowNumber = 12
+    rowNumber = ROW_BEGIN_GENERATION + 4
     If Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim statuses As Collection
         
@@ -259,7 +328,7 @@ Sub OnButtonExecuteClick()
             statusedInformations(index, 1) = status.name
             statusedInformations(index, 2) = status.is_closed
         Next index
-        Call FillTab(Worksheets(sheetName), statusedInformations, "List of all statuses")
+        Call FillTab(Worksheets(sheetName), statusedInformations, "List of all statuses, " & statuses.Count & " found.")
     End If
     
     '
@@ -267,13 +336,13 @@ Sub OnButtonExecuteClick()
     ' Get Issues list
     '
     '
-    rowNumber = 13
+    rowNumber = ROW_BEGIN_GENERATION + 5
     If Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim collectionStatus As Collection
         Dim filters As RedmineFilters
         Dim issues As RedmineIssues
         Dim issue As RedmineIssue
-        Dim valueStatusFilter, valueProjectFilter
+        Dim valueFilter, valueProjectFilter
         Dim errorMessage, errorTitleMessage As String
         Dim displayDescription As Boolean
         Dim issuesFieldsInformations() As String
@@ -287,22 +356,19 @@ Sub OnButtonExecuteClick()
         
         If valueProjectFilter <> vbNullString Then
             Set project = redmine.GetProjectByName(valueProjectFilter)
-        Else
-            ' Project not filled
-            errorTitleMessage = "No project filled"
-            errorMessage = "The project's name is mandatory,  please fill it in " & ColumnIssueProjectFilter & rowNumber & " cell!"
         End If
        
-        If Not project Is Nothing Then
+        If (Not project Is Nothing) Or valueProjectFilter = vbNullString Then
             ' Ok project found
             
             ' Manage filters
             Set filters = New RedmineFilters
-            valueStatusFilter = Worksheets("Main").Cells(rowNumber, ColumnIssueStatusFilter).value
-            If valueStatusFilter <> vbEmpty Then
+            
+            ' Check Status Filters
+            valueFilter = Worksheets("Main").Cells(rowNumber, ColumnIssueStatusFilter).value
+            If valueFilter <> vbEmpty Then
                 ' Check Issue Filters
-                Dim arrSplitStrings() As String
-                arrSplitStrings = Split(valueStatusFilter, "|")
+                arrSplitStrings = Split(valueFilter, "|")
                 If UBound(arrSplitStrings, 1) = 0 Or UBound(arrSplitStrings, 1) = 1 Then
                     If UBound(arrSplitStrings, 1) = 0 Then
                         ' Nothing to do here but cannot put And between 2 conditions, if first is false, the second is evaluate too and crash!
@@ -336,37 +402,118 @@ Sub OnButtonExecuteClick()
                 End If
             End If
             
+            ' Check Custom Field Filters
+            valueFilter = Worksheets("Main").Cells(rowNumber, ColumnIssueCustomFieldFilter).value
+            If errorMessage = vbEmpty And valueFilter <> vbEmpty Then
+                ' Check Custom Field Filters
+                Dim arrSplitLinesStrings() As String
+                Dim indexLine As Integer
+                
+                arrSplitLinesStrings = Split(valueFilter, vbLf)
+                For indexLine = 0 To UBound(arrSplitLinesStrings)
+                    Dim customFieldText As String
+                    
+                    arrSplitStrings = Split(Trim(arrSplitLinesStrings(indexLine)), "|")
+                    
+                    If UBound(arrSplitStrings, 1) = 2 Then
+                        customFieldText = Trim(arrSplitStrings(0))
+                        Set customfield = redmine.GetCustomFieldByName(customFieldText)
+                        If customfield Is Nothing Then
+                            errorTitleMessage = "Unknown custom field"
+                            errorMessage = "Unknown custom field '" & Trim(customFieldText) & "'!" & vbCrLf & vbCrLf & "Please have a look into column's comment."
+                            Exit For
+                        Else
+                            Set collectionCustomField = New Collection
+                        
+                            If Trim(arrSplitStrings(0)) <> vbNullString Then
+                                Dim arrSplitCustomFieldFilter() As String
+                                arrSplitCustomFieldFilter = Split(arrSplitStrings(2), ",")
+                                For index = 0 To UBound(arrSplitCustomFieldFilter)
+                                    Call collectionCustomField.Add(Trim(arrSplitCustomFieldFilter(index)))
+                                Next index
+                            End If
+                            If errorMessage = vbEmpty Then
+                                ' If no error
+                                On Error GoTo ManageException:
+                                Call filters.SetFilterCustomField(Trim(arrSplitStrings(1)), customfield, collectionCustomField)
+                                On Error GoTo 0
+                            End If
+                        End If
+                    Else
+                        errorTitleMessage = "Bad custom field format"
+                        errorMessage = "Bad format for custom field filter!" & vbCrLf & vbCrLf & "Please have a look into column's comment."
+                    End If
+                Next indexLine
+            End If
+            
             ' Request Issues only if no errors!
             If errorMessage = vbEmpty Then
                 On Error GoTo ManageException:
                 Set issues = redmine.GetIssues(project, -1, -1, filters)
                 On Error GoTo 0
                 If Not issues Is Nothing Then
-                    ReDim issuesFieldsInformations(issues.issuesNumber, 5 + IIf(displayDescription, 1, 0))
-                
-                    issuesFieldsInformations(0, 0) = "Id"
-                    issuesFieldsInformations(0, 1) = "Subject"
-                    issuesFieldsInformations(0, 2) = "Status"
-                    issuesFieldsInformations(0, 3) = "Priority"
-                    issuesFieldsInformations(0, 4) = "Author"
-                    issuesFieldsInformations(0, 5) = "Assign To"
-                    If displayDescription Then
-                        issuesFieldsInformations(0, 6) = "Description"
+                    Dim valueAddFields As String
+                    Dim indexLineAddField As Integer
+                    
+                    Set collectionCustomField = New Collection
+                    
+                    valueAddFields = Worksheets("Main").Cells(rowNumber, ColumnIssueDisplayCustomFields).value
+                    If valueAddFields <> vbNullString Then
+                        ' Check Custom Field Filters
+                        Dim arrSplitAddFieldsString() As String
+                        
+                        arrSplitAddFieldsString = Split(valueAddFields, vbLf)
+                        For indexLineAddField = 0 To UBound(arrSplitAddFieldsString)
+                            Set customfield = redmine.GetCustomFieldByName(Trim(arrSplitAddFieldsString(indexLineAddField)))
+                            If customfield Is Nothing Then
+                                errorTitleMessage = "Unknown custom field"
+                                errorMessage = "Unknown added display custom field '" & Trim(customFieldText) & "'!" & vbCrLf & vbCrLf & "Please have a look into column's comment."
+                                Exit For
+                            Else
+                                Call collectionCustomField.Add(customfield)
+                            End If
+                        Next indexLineAddField
                     End If
-            
-                    For index = 1 To issues.issuesNumber
-                        Set issue = issues.issues.item(index)
-                        issuesFieldsInformations(index, 0) = issue.id
-                        issuesFieldsInformations(index, 1) = issue.subject
-                        issuesFieldsInformations(index, 2) = issue.status("name")
-                        issuesFieldsInformations(index, 3) = issue.priority("name")
-                        issuesFieldsInformations(index, 4) = issue.author("name")
-                        issuesFieldsInformations(index, 5) = issue.assignedTo("name")
+                    
+                    If errorMessage = vbEmpty Then
+                        ReDim issuesFieldsInformations(issues.issues.Count, 5 + IIf(displayDescription, 1, 0) + collectionCustomField.Count)
+                    
+                        issuesFieldsInformations(0, 0) = "Id"
+                        issuesFieldsInformations(0, 1) = "Subject"
+                        issuesFieldsInformations(0, 2) = "Status"
+                        issuesFieldsInformations(0, 3) = "Priority"
+                        issuesFieldsInformations(0, 4) = "Author"
+                        issuesFieldsInformations(0, 5) = "Assign To"
                         If displayDescription Then
-                            issuesFieldsInformations(index, 6) = issue.description
+                            issuesFieldsInformations(0, 6) = "Description"
                         End If
-                    Next index
-                    Call FillTab(Worksheets(sheetName), issuesFieldsInformations, "List of Issues, " & issues.issuesNumber & " found.")
+                        
+                        indexLineAddField = 6 + IIf(displayDescription, 1, 0)
+                        For Each customfield In collectionCustomField
+                            issuesFieldsInformations(0, indexLineAddField) = customfield.name
+                            indexLineAddField = indexLineAddField + 1
+                        Next
+                
+                        For index = 1 To issues.issues.Count
+                            Set issue = issues.issues.item(index)
+                            issuesFieldsInformations(index, 0) = issue.id
+                            issuesFieldsInformations(index, 1) = issue.subject
+                            issuesFieldsInformations(index, 2) = issue.status("name")
+                            issuesFieldsInformations(index, 3) = issue.priority("name")
+                            issuesFieldsInformations(index, 4) = issue.author("name")
+                            issuesFieldsInformations(index, 5) = issue.assignedTo("name")
+                            If displayDescription Then
+                                issuesFieldsInformations(index, 6) = issue.description
+                            End If
+                            
+                            indexLineAddField = 6 + IIf(displayDescription, 1, 0)
+                            For Each customfield In collectionCustomField
+                                issuesFieldsInformations(index, indexLineAddField) = issue.getCustomFieldValue(customfield)
+                                indexLineAddField = indexLineAddField + 1
+                            Next
+                        Next index
+                        Call FillTab(Worksheets(sheetName), issuesFieldsInformations, "List of Issues, " & issues.issuesNumber & " found.", issues.issuesNumber)
+                    End If
                 ElseIf errorMessage = vbEmpty Then
                     ' Cannot retrieve issues ?
                     errorTitleMessage = "Cannot retrieve Issues"

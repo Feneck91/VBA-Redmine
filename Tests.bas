@@ -6,7 +6,7 @@ Sub TestRedmine()
     Dim projects As Collection
     Dim project As RedmineProject
     Dim customFields As Collection
-    Dim customField As RedmineCustomField
+    Dim customfield As RedmineCustomField
     Dim possibleValue As RedminePossibleValue
     Dim issues As RedmineIssues
     Dim issue As RedmineIssue
@@ -72,13 +72,13 @@ Sub TestRedmine()
     Debug.Print
     Print #n, "" ' write to file
     
-    For Each customField In redmine.GetCustomFields()
-      strOut = "Custom Field (" & customField.name & ") : id=" & customField.id & " / type = " & customField.customized_type & " / format = " & customField.field_format & " / default = '" & customField.default_value & "'"
+    For Each customfield In redmine.GetCustomFields()
+      strOut = "Custom Field (" & customfield.name & ") : id=" & customfield.id & " / type = " & customfield.customized_type & " / format = " & customfield.field_format & " / default = '" & customfield.default_value & "'"
       Debug.Print strOut
       Print #n, strOut ' write to file
       
-      If Not customField.possible_values Is Nothing Then
-        For Each possibleValue In customField.possible_values
+      If Not customfield.possible_values Is Nothing Then
+        For Each possibleValue In customfield.possible_values
           strOut = "  - Value = " & possibleValue.value & " / Label = " & possibleValue.label
           Debug.Print strOut
           Print #n, strOut ' write to file
