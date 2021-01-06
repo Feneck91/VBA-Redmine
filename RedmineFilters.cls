@@ -130,6 +130,13 @@ End Sub
 '           '><' Between, only two integer values are mandatory.
 '           '*' All fields that are not empty, no value needed.
 '           '!*' All fields that are empty, no value needed.
+'       For date custom fields:
+'           '=' Equal, only one date as String or Date value is mandatory.
+'           '>=' Upper or equal, only one as String or Date value is mandatory.
+'           '<=' Lower or equal, only one as String or Date value is mandatory.
+'           '><' Between, only two as String or Date values are mandatory.
+'           '*' All fields that are not empty, no value needed.
+'           '!*' All fields that are empty, no value needed.
 '       For list custom fields:
 '           '=' Equal, only one value (into the possible values list).
 '           '!' Different, only one value (into the possible values list).
@@ -369,12 +376,6 @@ Public Sub SetFilterCustomField(ByVal operator As String, ByVal customfield As R
             ' Unsupported operator
             Call Err.Raise(Number:=vbObjectError + 1, description:="Unknown '" & operator & "' operator in filter custom field for " & customfield.field_format & " type!")
         End If
-    
-    
-    
-    
-    
-    
     Else
         ' Unsupported type
         Call Err.Raise(Number:=vbObjectError + 1, description:="Field type " & customfield.field_format & " is not yet supported!")
