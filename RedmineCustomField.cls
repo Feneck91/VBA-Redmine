@@ -25,24 +25,56 @@ End Sub
 
 ' Load a dictionnary of custom fields
 Public Function load(ByVal json As Dictionary)
-    Me.id = CLng(json("id"))
+    Me.id = json("id")
     Me.name = json("name")
     Me.customized_type = json("customized_type")
     Me.field_format = json("field_format")
     Me.default_value = json("default_value")
   
-    Dim val As Object
     If json.Exists("possible_values") Then
         Dim p As RedminePossibleValue
     
         Set possible_values = New Collection
-        For Each val In json("possible_values")
-            Set p = New RedminePossibleValue
-            Call p.load(val)
-            Call possible_values.Add(p)
-        Next
+        
+        If TypeName(json("possible_values")) = "Collection" Then
+            Dim val As Variant
+    
+            For Each val In json("possible_values")
+                Set p = New RedminePossibleValue
+                Call p.setValueAndLabel(val)
+                Call possible_values.Add(p)
+            Next
+        Else
+            Dim valObj As Object
+    
+            For Each valObj In json("possible_values")
+                Set p = New RedminePossibleValue
+                Call p.load(valObj)
+                Call possible_values.Add(p)
+            Next
+        End If
     End If
 End Function
+
+' Used to manually initialize the class.
+'
+' This can be use into a software to make request without having administrator privilege (needed to get custom fields list).
+'
+'@param id Identifier, this is this field that is used to make request filter.
+'@param name Displayed name of this field
+'@param field_format format of this field. Can be 'bool', 'string', 'text', 'date','int'.
+'@param customized_type Custum type
+'@param default_value Default value
+'@param possible_values Collection of RedminePossibleValue, used only when field_format is 'list', else pass Nothing
+Public Sub Init(ByVal id As Long, ByVal name As String, ByVal field_format As String, ByVal customized_type As String, ByVal default_value As String, ByVal possible_values As Collection)
+    Me.id = id
+    Me.name = name
+    Me.customized_type = customized_type
+    Me.field_format = field_format
+    Me.default_value = default_value
+    Set Me.possible_values = possible_values
+End Sub
+
 
 ' Search label into possible values an return the possible value if found, Nothing else
 Public Function getPossibleValueFromLabel(ByVal val As String) As RedminePossibleValue

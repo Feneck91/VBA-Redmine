@@ -24,3 +24,10 @@ Public Function load(ByVal json As Dictionary)
   Me.value = json("value")
   Me.label = json("label")
 End Function
+
+' Set value and label with same value
+Public Function setValueAndLabel(ByVal value As String)
+  Me.value = value
+  Me.label = value
+End Function
+

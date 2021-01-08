@@ -125,21 +125,21 @@ End Sub
 '           '!*' All fields that are empty, no value needed.
 '       For int custom fields:
 '           '=' Equal, only one integer value is mandatory.
+'           '!' Different, only one integer value is mandatory.
 '           '>=' Upper or equal, only one integer value is mandatory.
 '           '<=' Lower or equal, only one integer value is mandatory.
 '           '><' Between, only two integer values are mandatory.
 '           '*' All fields that are not empty, no value needed.
 '           '!*' All fields that are empty, no value needed.
-'       For date custom fields:
-'           '=' Equal, only one date as String or Date value is mandatory.
-'           '>=' Upper or equal, only one as String or Date value is mandatory.
-'           '<=' Lower or equal, only one as String or Date value is mandatory.
-'           '><' Between, only two as String or Date values are mandatory.
-'           '*' All fields that are not empty, no value needed.
-'           '!*' All fields that are empty, no value needed.
 '       For list custom fields:
 '           '=' Equal, only one value (into the possible values list).
 '           '!' Different, only one value (into the possible values list).
+'       For date custom fields:
+'           '>=' Upper or equal, only one date value is mandatory.
+'           '<=' Lower or equal, only one date value is mandatory.
+'           '><' Between, only two dates values are mandatory.
+'           '*' All fields that are not empty, no value needed.
+'           '!*' All fields that are empty, no value needed.
 ' @param values is a collection of value used by the filter.
 ' @throw Exception if parameters are not valid
 Public Sub SetFilterCustomField(ByVal operator As String, ByVal customfield As RedmineCustomField, Optional ByVal values As Collection)
@@ -240,7 +240,7 @@ Public Sub SetFilterCustomField(ByVal operator As String, ByVal customfield As R
             Call Err.Raise(Number:=vbObjectError + 1, description:="Unknown '" & operator & "' operator in filter custom field for " & customfield.field_format & " type!")
         End If
     ElseIf customfield.field_format = "int" Then
-        If operator = "=" Or operator = ">=" Or operator = "<=" Or operator = "><" Or operator = "*" Or operator = "!*" Then
+        If operator = "=" Or operator = "!" Or operator = ">=" Or operator = "<=" Or operator = "><" Or operator = "*" Or operator = "!*" Then
             Call Addfilter("f[]", cfId)
             Call Addfilter("op[" & cfId & "]", operator)
 
@@ -253,7 +253,7 @@ Public Sub SetFilterCustomField(ByVal operator As String, ByVal customfield As R
                     End If
                 End If
             ElseIf Not values Is Nothing Then
-                If operator = "=" Or operator = ">=" Or operator = "<=" Then
+                If operator = "=" Or operator = "!" Or operator = ">=" Or operator = "<=" Then
                     If values.Count = 1 Then
                         If TypeName(values.item(1)) = "String" Or TypeName(values.item(1)) = "Byte" Or TypeName(values.item(1)) = "Integer" Or TypeName(values.item(1)) = "Long" Then
                             Call Addfilter("v[" & cfId & "][]", CLng(values.item(1)))
@@ -379,5 +379,26 @@ Public Sub SetFilterCustomField(ByVal operator As String, ByVal customfield As R
     Else
         ' Unsupported type
         Call Err.Raise(Number:=vbObjectError + 1, description:="Field type " & customfield.field_format & " is not yet supported!")
+    End If
+End Sub
+
+' Add filter without any verification.
+'
+' It create : f[]=<fieldname>
+'             op[<fieldname>]=<operator>
+'             v[<fieldname>][]=<values[0]>
+'             v[<fieldname>][]=<values[1]> ... etc.
+'
+'@param fieldname The field name
+'@param operator The operator
+'@param values The values (can be Nothing or empty), must be a String Collection!
+Public Sub SetGenericFilter(ByVal fieldname As String, ByVal operator As String, Optional ByVal values As Collection)
+    Call Addfilter("f[]", fieldname)
+    Call Addfilter("op[" & fieldname & "]", operator)
+    If Not values Is Nothing Then
+        Dim value As String
+        For Each valeu In values
+            Call Addfilter("v[" & fieldname & "][]", value)
+        Next
     End If
 End Sub
