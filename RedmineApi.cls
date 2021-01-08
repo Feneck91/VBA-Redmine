@@ -54,7 +54,7 @@ Public Function CreateUser(ByRef user As RedmineUser, _
                            Optional ByVal send_information As Boolean = False) As Boolean
     Dim json As String
     json = user.generateJson(password, auth_source_id, mail_notification, must_change_password, generate_password, send_information)
-    CreateUser = SendApiRequest("POST", "users", requestBody:=json)
+    CreateUser = SendApiRequest("POST", "users.json", requestBody:=json)
 End Function
 
 'Get user information
@@ -104,7 +104,7 @@ Public Function GetUsers(Optional ByVal userId As Integer = -1, _
         End If
     
         bIsDone = True
-        If SendApiRequest("GET", reqPath, requestParam:=params) Then
+        If SendApiRequest("GET", reqPath & ".json", requestParam:=params) Then
             Dim r As RedmineUser
         
             If json.Exists("user") Then
@@ -153,6 +153,7 @@ Public Function GetUsers(Optional ByVal userId As Integer = -1, _
     Loop While Not bIsDone
 End Function
 
+
 ' Get All groups
 Public Function GetGroups(Optional ByVal groupId As Integer = -1, _
                           Optional ByVal incUsers As Boolean = False, _
@@ -172,7 +173,7 @@ Public Function GetGroups(Optional ByVal groupId As Integer = -1, _
     Set params = CreateObject("Scripting.Dictionary")
     If incStr <> "" Then Call params.Add("include", Mid(incStr, 2))
   
-    If SendApiRequest("GET", reqPath, requestParam:=params) Then
+    If SendApiRequest("GET", reqPath & ".json", requestParam:=params) Then
         Dim ret As Collection
         Dim r As RedmineGroup
         Set ret = New Collection
@@ -245,7 +246,7 @@ Public Function GetProjects(Optional ByVal projectId As String = "", _
                 End If
             End If
     
-            If SendApiRequest("GET", reqPath, requestParam:=params) Then
+            If SendApiRequest("GET", reqPath & ".json", requestParam:=params) Then
                 Dim r As RedmineProject
 
                 If json.Exists("project") Then
@@ -303,36 +304,68 @@ Public Function GetProjectByName(ByVal projectName As String) As RedmineProject
     Next
 End Function
 
-'Get custom fields informations.
+'Get custom fields informations from a specific url.
+'
+' This can be used if specific URL is used to retrieve custom fields (without having administrator privileges)
 '
 '@return: A collection of instance of RedmineCustomField, Nothing if not found.
 Public Function GetCustomFields() As Collection
+    Set GetCustomFields = GetCustomFieldsFromURL("custom_fields.json", "custom_fields")
+End Function
+
+'Get custom fields informations from a specific url.
+'
+' This can be used if specific URL is used to retrieve custom fields (without having administrator privileges)
+' This request are used to call specific api created by Redmine plugin (in server side), because
+' some fields need administrator authorization so this specific request get some informations without needed the administrator rights
+'
+'@param reqPath Request path
+'@param jsonEntry list of json entrie's names (separate by '/') where to decode custom fields.
+'@return: A collection of instance of RedmineCustomField, Nothing if not found.
+Public Function GetCustomFieldsFromURL(ByVal reqPath As String, ByVal jsonEntry As String) As Collection
     If customFields Is Nothing Then
-        Dim reqPath As String
         Dim ret As Collection
 
-        reqPath = "custom_fields"
         Set ret = New Collection
+        Set GetCustomFieldsFromURL = Nothing
   
         If SendApiRequest("GET", reqPath) Then
             Dim cfVal As RedmineCustomField
-              
-            If json.Exists("custom_fields") Then
-                Dim cf As Object
-      
-                For Each cf In json("custom_fields")
-                    Set cfVal = New RedmineCustomField
-                    Call cfVal.load(cf)
-                    Call ret.Add(cfVal)
-                Next
+            
+            If jsonEntry <> vbNullString Then
+                Dim arrSplitStrings() As String
+                Dim index As Integer
+                
+                arrSplitStrings = Split(jsonEntry, "/")
+                
+                For index = 0 To UBound(arrSplitStrings) - 1
+                    If json.Exists(arrSplitStrings(index)) Then
+                        Set json = json(arrSplitStrings(index))
+                    Else
+                        Set json = Nothing
+                        Exit For
+                    End If
+                Next index
+                jsonEntry = arrSplitStrings(UBound(arrSplitStrings))
             End If
-            Set GetCustomFields = ret
-            Set customFields = ret
-        Else
-            Set GetCustomFields = Nothing
+
+            If Not json Is Nothing Then
+                If json.Exists(jsonEntry) Then
+                    Dim cf As Object
+        
+                    For Each cf In json(jsonEntry)
+                        Set cfVal = New RedmineCustomField
+                        Call cfVal.load(cf)
+                        Call ret.Add(cfVal)
+                    Next
+                  
+                    Set GetCustomFieldsFromURL = ret
+                    Set customFields = ret
+                End If
+            End If
         End If
     Else
-        Set GetCustomFields = customFields
+        Set GetCustomFieldsFromURL = customFields
     End If
 End Function
 
@@ -365,7 +398,7 @@ Public Function GetStatuses() As Collection
         reqPath = "issue_statuses"
         Set ret = New Collection
   
-        If SendApiRequest("GET", reqPath) Then
+        If SendApiRequest("GET", reqPath & ".json") Then
             Dim cfVal As RedmineStatus
               
             If json.Exists("issue_statuses") Then
@@ -451,7 +484,7 @@ Public Function GetIssues(ByVal project As RedmineProject, _
             End If
         End If
     
-        If SendApiRequest("GET", reqPath, requestParam:=params) Then
+        If SendApiRequest("GET", reqPath & ".json", requestParam:=params) Then
             Dim r As RedmineIssue
             
             If json.Exists("issue") Then
@@ -527,7 +560,7 @@ Public Function SendApiRequest(ByVal method As String, _
     Set req = CreateHttpRequest()
   
     'URL assembly
-    postUri = Me.BaseUri & requestPath & ".json"
+    postUri = Me.BaseUri & requestPath
     'Add parameters
     If Not requestParam Is Nothing And TypeName(requestParam) = "Dictionary" Then
         If LBound(requestParam.Keys) >= 0 Then
@@ -556,6 +589,10 @@ Public Function SendApiRequest(ByVal method As String, _
     If Not req.status < 300 Then
         Debug.Print "StatusCode: " & req.status
         Debug.Print "Response: " & req.responseText
+        If req.status = 403 Then
+            ' Access denied
+            Call Err.Raise(Number:=vbObjectError + 1, description:="Request '" & Me.BaseUri & requestPath & "': access denied, may be need specific authorization?")
+        End If
         Exit Function
     End If
   
