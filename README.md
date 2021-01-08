@@ -9,6 +9,10 @@ Reading Group / Projects / Users / Statuses / Custom Values / Issues
 For the moment, it manage filters issues with only project and status operations (open / closed / equal or different).
 It is ready for future features like filter on Custom Fields values.
 
+The current allow you to retrieve some informations without beeing administrator (need a server plugin).
+Be careful, this is a  security breaches. Use the plugin at you own risk! You can add parameter to  add security (the user must be logged).
+This code is into ServerRedmineAPIex folder.
+
 ## Examples
 
 ```vb
