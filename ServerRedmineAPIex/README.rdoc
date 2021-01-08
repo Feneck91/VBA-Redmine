@@ -1,0 +1,17 @@
+# Extensions of Redmine API #
+
+This is used to extends Redmine functionnalities:
+
+- Get the model (read only) without needed the administrators rights.
+  > get 'apiex/model'
+    >>> result['customField'] = List of custom fields + possible values
+        result['status']      = List of status
+        result['priority']    = List of priorities
+        result['users']       = List of users
+        result['groups']      = list of groups
+     
+**Be careful: Test only on Debian 8**
+
+## Installation ##
+Copy contents of folder in /opt/redmine_3.3.3/plugins/redmine_apiex
+Re-run server: sudo apache2ctl restart
