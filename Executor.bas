@@ -131,6 +131,16 @@ Sub OnButtonExecuteClick()
     redmine.BaseUri = ThisWorkbook.Sheets("Main").Cells(4, "B").value
     redmine.ApiKey = ThisWorkbook.Sheets("Main").Cells(6, "B").value
     redmine.Proxy = ThisWorkbook.Sheets("Main").Cells(5, "B").value
+    If ThisWorkbook.Sheets("Main").Cells(5, "C").value <> vbNullString Then
+        arrSplitStrings = Split(ThisWorkbook.Sheets("Main").Cells(5, "C").value, ":")
+        If UBound(arrSplitStrings, 1) = 1 Then
+            redmine.ProxyLogin = arrSplitStrings(0)
+            redmine.ProxyPassword = arrSplitStrings(1)
+        Else
+            errorMessage = "Bad format for proxy's login and password!" & vbCrLf & vbCrLf & "User login:password format!"
+        End If
+    End If
+    
     If ThisWorkbook.Sheets("Main").Cells(7, "B").value <> vbNullString Then
         redmine.LimitRequest = ThisWorkbook.Sheets("Main").Cells(7, "B").value
     End If
@@ -143,7 +153,7 @@ Sub OnButtonExecuteClick()
     '
     ' 1> Custom fields
     rowNumber = ROW_BEGIN_REQUEST + 0
-    If errorMessage = vbEmpty And ThisWorkbook.Sheets("Main").Cells(rowNumber, "B").value <> vbNullString Then
+    If errorMessage = vbNullString And ThisWorkbook.Sheets("Main").Cells(rowNumber, "B").value <> vbNullString Then
         On Error GoTo ManageException:
         Call redmine.GetCustomFieldsFromURL(ThisWorkbook.Sheets("Main").Cells(rowNumber, "B").value, ThisWorkbook.Sheets("Main").Cells(rowNumber, "C").value)
         On Error GoTo 0
@@ -159,7 +169,7 @@ Sub OnButtonExecuteClick()
     '
     '
     rowNumber = ROW_BEGIN_GENERATION + 0
-    If errorMessage = vbEmpty And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
+    If errorMessage = vbNullString And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim users As RedmineUsers
         
         sheetName = "Users"
@@ -170,7 +180,7 @@ Sub OnButtonExecuteClick()
         Set users = redmine.GetUsers(numPage:=20)
         On Error GoTo 0
         
-        If errorMessage = vbEmpty Then
+        If errorMessage = vbNullString Then
             Dim usersInformations() As String
             
             ReDim usersInformations(users.users.Count, 4)
@@ -197,7 +207,7 @@ Sub OnButtonExecuteClick()
     '
     '
     rowNumber = ROW_BEGIN_GENERATION + 1
-    If errorMessage = vbEmpty And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
+    If errorMessage = vbNullString And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim projects As Collection
         
         sheetName = "Projects"
@@ -208,7 +218,7 @@ Sub OnButtonExecuteClick()
         Set projects = redmine.GetProjects()
         On Error GoTo 0
         
-        If errorMessage = vbEmpty Then
+        If errorMessage = vbNullString Then
             Dim projectsInformations() As String
             ReDim projectsInformations(projects.Count, 4)
             
@@ -235,7 +245,7 @@ Sub OnButtonExecuteClick()
     '
     '
     rowNumber = ROW_BEGIN_GENERATION + 2
-    If errorMessage = vbEmpty And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
+    If errorMessage = vbNullString And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim customFields As Collection
         
         sheetName = "Custom Fields"
@@ -246,7 +256,7 @@ Sub OnButtonExecuteClick()
         Set customFields = redmine.GetCustomFields()
         On Error GoTo 0
         
-        If errorMessage = vbEmpty Then
+        If errorMessage = vbNullString Then
             Dim customFieldsInformations() As String
             ReDim customFieldsInformations(customFields.Count, 6)
             
@@ -295,7 +305,7 @@ Sub OnButtonExecuteClick()
     '
     '
     rowNumber = ROW_BEGIN_GENERATION + 3
-    If errorMessage = vbEmpty And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
+    If errorMessage = vbNullString And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim groups As Collection
         Dim group As RedmineGroup
         
@@ -307,7 +317,7 @@ Sub OnButtonExecuteClick()
         Set groups = redmine.GetGroups(-1, True, True)
         On Error GoTo 0
         
-        If errorMessage = vbEmpty Then
+        If errorMessage = vbNullString Then
             Dim groupsInformations() As String
             Dim infosText As String
             ReDim groupsInformations(groups.Count, 3)
@@ -342,7 +352,7 @@ Sub OnButtonExecuteClick()
     '
     '
     rowNumber = ROW_BEGIN_GENERATION + 4
-    If errorMessage = vbEmpty And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
+    If errorMessage = vbNullString And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim statuses As Collection
         
         sheetName = "Statuses"
@@ -353,7 +363,7 @@ Sub OnButtonExecuteClick()
         Set statuses = redmine.GetStatuses()
         On Error GoTo 0
         
-        If errorMessage = vbEmpty Then
+        If errorMessage = vbNullString Then
             Dim statusedInformations() As String
             ReDim statusedInformations(statuses.Count, 2)
             
@@ -376,7 +386,7 @@ Sub OnButtonExecuteClick()
     '
     '
     rowNumber = ROW_BEGIN_GENERATION + 5
-    If errorMessage = vbEmpty And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
+    If errorMessage = vbNullString And Worksheets("Main").Cells(rowNumber, ColumnCheck).value = True Then
         Dim collectionStatus As Collection
         Dim filters As RedmineFilters
         Dim issues As RedmineIssues
@@ -432,7 +442,7 @@ Sub OnButtonExecuteClick()
                             Call collectionStatus.Add(status)
                         Next index
                     End If
-                    If errorMessage = vbEmpty Then
+                    If errorMessage = vbNullString Then
                         ' If no error
                         On Error GoTo ManageException:
                         Call filters.SetFilterStatus(Trim(arrSplitStrings(0)), collectionStatus)
@@ -446,7 +456,7 @@ Sub OnButtonExecuteClick()
             
             ' Check Custom Field Filters
             valueFilter = Worksheets("Main").Cells(rowNumber, ColumnIssueCustomFieldFilter).value
-            If errorMessage = vbEmpty And valueFilter <> vbEmpty Then
+            If errorMessage = vbNullString And valueFilter <> vbEmpty Then
                 ' Check Custom Field Filters
                 Dim arrSplitLinesStrings() As String
                 Dim indexLine As Integer
@@ -476,7 +486,7 @@ Sub OnButtonExecuteClick()
                                     Call collectionCustomField.Add(Trim(arrSplitCustomFieldFilter(index)))
                                 Next index
                             End If
-                            If errorMessage = vbEmpty Then
+                            If errorMessage = vbNullString Then
                                 ' If no error
                                 On Error GoTo ManageException:
                                 Call filters.SetFilterCustomField(Trim(arrSplitStrings(1)), customfield, collectionCustomField)
@@ -491,7 +501,7 @@ Sub OnButtonExecuteClick()
             End If
             
             ' Request Issues only if no errors!
-            If errorMessage = vbEmpty Then
+            If errorMessage = vbNullString Then
                 On Error GoTo ManageException:
                 Set issues = redmine.GetIssues(project, -1, -1, filters)
                 On Error GoTo 0
@@ -521,7 +531,7 @@ Sub OnButtonExecuteClick()
                         Next indexLineAddField
                     End If
                     
-                    If errorMessage = vbEmpty Then
+                    If errorMessage = vbNullString Then
                         ReDim issuesFieldsInformations(issues.issues.Count, 5 + IIf(displayDescription, 1, 0) + collectionCustomField.Count)
                     
                         issuesFieldsInformations(0, 0) = "Id"
@@ -560,13 +570,13 @@ Sub OnButtonExecuteClick()
                         Next index
                         Call FillTab(Worksheets(sheetName), issuesFieldsInformations, "List of Issues, " & issues.issuesNumber & " found.", issues.issuesNumber)
                     End If
-                ElseIf errorMessage = vbEmpty Then
+                ElseIf errorMessage = vbNullString Then
                     ' Cannot retrieve issues ?
                     errorTitleMessage = "Cannot retrieve Issues"
                     errorMessage = "An error occurs, cannot retrieve Issues in Redmine database!"
                 End If
             End If
-        ElseIf errorMessage = vbEmpty Then
+        ElseIf errorMessage = vbNullString Then
             ' Project not found
             errorTitleMessage = "Bad project's name"
             errorMessage = "Project '" & valueProjectFilter & "' not found in Redmine database!"
@@ -574,9 +584,11 @@ Sub OnButtonExecuteClick()
     End If
     
     ' If error display error message box
-    If errorMessage <> vbEmpty Then
+    If errorMessage <> vbNullString Then
         ReDim issuesFieldsInformations(0)
-        Call FillTab(Worksheets(sheetName), issuesFieldsInformations, "Cannot fill this sheet: " & errorMessage)
+        If sheetName <> vbNullString Then
+            Call FillTab(Worksheets(sheetName), issuesFieldsInformations, "Cannot fill this sheet: " & errorMessage)
+        End If
         Call MsgBox(errorMessage, vbOKOnly + vbCritical, errorTitleMessage)
     End If
     

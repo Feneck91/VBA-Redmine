@@ -15,9 +15,12 @@ Public BaseUri As String
 Public ApiKey As String
 'Redmine Proxy
 Public Proxy As String
+'Redmine Proxy's login
+Public ProxyLogin As String
+'Redmine Proxy's password
+Public ProxyPassword As String
 ' Limit the informations bring back to the server. It prevent application to hang if there is too many informations to retrieve
 Public LimitRequest As Long
-
 ' Internal json instance
 Private json As Dictionary
 ' Current loaded projects cache. Use to don't requets many times.
@@ -545,6 +548,8 @@ Public Function SendApiRequest(ByVal method As String, _
                                ByVal requestPath As String, _
                                Optional ByVal requestParam As Object = Nothing, _
                                Optional ByVal requestBody As String = "") As Boolean
+    Const HTTPREQUEST_PROXYSETTING_PROXY = 2
+    Const HTTPREQUEST_SETCREDENTIALS_FOR_PROXY = 1
     Dim key As Variant
     Dim postUri As String
     Dim req As Object
@@ -581,7 +586,13 @@ Public Function SendApiRequest(ByVal method As String, _
 
     'Send request
     Call req.Open(method, postUri, False)
-    If Proxy <> vbNullString Then Call req.SetProxy(2, Proxy)
+    If Proxy <> vbNullString Then
+        Call req.SetProxy(HTTPREQUEST_PROXYSETTING_PROXY, Proxy)
+        If ProxyLogin <> vbNullString Then
+            Call req.SetCredentials(ProxyLogin, ProxyPassword, HTTPREQUEST_SETCREDENTIALS_FOR_PROXY)
+        End If
+    End If
+    
     Call req.setRequestHeader("Content-Type", "application/json")
     Call req.setRequestHeader("X-Redmine-API-Key", Me.ApiKey)
     Call req.send(requestBody)
