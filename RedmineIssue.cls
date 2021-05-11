@@ -101,9 +101,25 @@ End Function
 ' @return vbNullString if not found, else the value of the custom field.
 Public Function getCustomFieldValue(ByRef customfield As RedmineCustomField) As String
     Dim customFieldsVal As Dictionary
+    Dim strResult As String
+    Dim strVal As Variant
+        
     getCustomFieldValue = vbNullString
     
     If customFields.Exists(customfield.id) Then
-        getCustomFieldValue = customFields(customfield.id)("value")
+        If TypeName(customFields(customfield.id)("value")) <> "Collection" Then
+            getCustomFieldValue = customFields(customfield.id)("value")
+        Else
+            ' Manage values list
+            strResult = ""
+            For Each strVal In customFields(customfield.id)("value")
+                If Len(strResult) <> 0 Then
+                    strResult = strResult & ","
+                End If
+                strResult = strResult & CStr(strVal)
+            Next
+
+            getCustomFieldValue = strResult
+        End If
     End If
 End Function
